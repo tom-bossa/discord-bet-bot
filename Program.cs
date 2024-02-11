@@ -137,10 +137,6 @@ internal class Program {
         foreach (var bet in unresolvedBets) {
             var betTo = _client.GetUser(bet.To);
             var betFrom = _client.GetUser(bet.From);
-            var cb = new ComponentBuilder();
-            cb = cb.WithButton("Won the bet", bet.Id + "-win");
-            cb = cb.WithButton("Lost The Bet", bet.Id + "-lose");
-            cb = cb.WithButton("Cancel Bet", bet.Id + "-cancel");
             await message.Channel.SendMessageAsync(GetDisplayName(betFrom) + " has bet " + GetDisplayName(betTo) + " " + MoneyString(bet.Amount) +
                                                    " on : _" + bet.Description + "_\n" +
                                                    "**Waiting for outcome:**", components: GetComponentBuilder(betFrom, betTo, bet).Build());
@@ -158,14 +154,12 @@ internal class Program {
             await message.Channel.SendMessageAsync("**" + GetDisplayName(user) + " has no bets**");
             return;
         }
-
         // bets placed, won, total money bet, actual end balance, and breakdowns of individuals you owe money to or are owed money from
         var betsInvolvedIn = userBets.Count;
         var betsWon = 0;
         var totalMoneyBet = 0;
         var actualBalance = 0;
         Dictionary<ulong, int> userTotals = new();
-
 
         foreach (var bet in userBets) {
             if (bet.From == user.Id) {
