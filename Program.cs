@@ -5,8 +5,8 @@ using Newtonsoft.Json;
 
 namespace BetBot;
 
-internal class Program {
-    private static DiscordSocketClient _client;
+internal static class Program {
+    private static DiscordSocketClient _client = new();
 
     private static List<Bet> _bets = new();
 
@@ -27,7 +27,6 @@ internal class Program {
         _client.Ready += ReadyAsync;
         _client.MessageReceived += MessageReceivedAsync;
         _client.InteractionCreated += InteractionCreatedAsync;
-
         var token = await File.ReadAllTextAsync("token.txt");
         await _client.LoginAsync(TokenType.Bot, token);
         await _client.StartAsync();
@@ -64,23 +63,23 @@ internal class Program {
         }
 
         if (parts[0] == "!stats") {
-            await CommandBetStats(message, parts);
+            await CommandBetStats(message);
         }
 
         if (parts[0] == "!unresolved") {
-            await CommandBetsUnresolved(message, parts);
+            await CommandBetsUnresolved(message);
         }
 
         if (parts[0] == "!help") {
-            await CommandBetHelp(message, parts);
+            await CommandBetHelp(message);
         }
 
         if (parts[0] == "!leaderboard") {
-            await CommandBetLeaderboard(message, parts);
+            await CommandBetLeaderboard(message);
         }
     }
 
-    private static async Task CommandBetLeaderboard(SocketMessage message, string[] parts) {
+    private static async Task CommandBetLeaderboard(SocketMessage message) {
         var userBalances = new Dictionary<ulong, int>();
         foreach (var bet in _bets) {
             var moneyDirection = bet.IsWin ? 1 : -1;
@@ -104,7 +103,7 @@ internal class Program {
             sb.Append("No bets have been placed yet!\n");
         } else {
             for (var i = 0; i < sortedBalances.Count; i++) {
-                var user = _client.GetUser(sortedBalances[i].Key);
+                var user = await _client.GetUserAsync(sortedBalances[i].Key);
                 string moneyString = MoneyString(sortedBalances[i].Value);
                 sb.Append((i + 1 + ". " + GetDisplayName(user) + " ").PadRight(38 - moneyString.Length) + moneyString + "\n");
             }
@@ -115,7 +114,7 @@ internal class Program {
         await message.Channel.SendMessageAsync(sb.ToString());
     }
 
-    private static async Task CommandBetHelp(SocketMessage message, string[] parts) {
+    private static async Task CommandBetHelp(SocketMessage message) {
         var helpMessage = @"
 **Commands:**
 - `!bet amount @user description`: Place a bet with a specified user, amount (optional : defaults to 20), and description. Example: `!bet @JohnDoe Pizza bet`
@@ -127,7 +126,7 @@ internal class Program {
         await message.Channel.SendMessageAsync(helpMessage);
     }
 
-    private static async Task CommandBetsUnresolved(SocketMessage message, string[] parts) {
+    private static async Task CommandBetsUnresolved(SocketMessage message) {
         var unresolvedBets = _bets.Where(b => !b.HasResolved).ToList();
         if (unresolvedBets.Count == 0) {
             await message.Channel.SendMessageAsync("No unresolved bets found");
@@ -135,15 +134,15 @@ internal class Program {
         }
 
         foreach (var bet in unresolvedBets) {
-            var betTo = _client.GetUser(bet.To);
-            var betFrom = _client.GetUser(bet.From);
+            var betTo = await _client.GetUserAsync(bet.To);
+            var betFrom = await _client.GetUserAsync(bet.From);
             await message.Channel.SendMessageAsync(GetDisplayName(betFrom) + " has bet " + GetDisplayName(betTo) + " " + MoneyString(bet.Amount) +
                                                    " on : _" + bet.Description + "_\n" +
                                                    "**Waiting for outcome:**", components: GetComponentBuilder(betFrom, betTo, bet).Build());
         }
     }
 
-    private static async Task CommandBetStats(SocketMessage message, string[] parts) {
+    private static async Task CommandBetStats(SocketMessage message) {
         var user = message.Author;
         if (message.MentionedUsers.Count == 1) {
             user = message.MentionedUsers.First();
@@ -157,7 +156,7 @@ internal class Program {
         // bets placed, won, total money bet, actual end balance, and breakdowns of individuals you owe money to or are owed money from
         var betsInvolvedIn = userBets.Count;
         var betsWon = 0;
-        var totalMoneyBet = 0;
+        //var totalMoneyBet = 0;
         var actualBalance = 0;
         Dictionary<ulong, int> userTotals = new();
 
@@ -168,7 +167,7 @@ internal class Program {
                 }
 
                 var dir = bet.IsWin ? 1 : -1;
-                totalMoneyBet += bet.Amount;
+                //totalMoneyBet += bet.Amount;
                 actualBalance += bet.Amount * dir;
                 if (userTotals.ContainsKey(bet.To)) {
                     userTotals[bet.To] += bet.Amount * dir;
@@ -181,7 +180,7 @@ internal class Program {
                 }
 
                 var dir = !bet.IsWin ? 1 : -1;
-                totalMoneyBet += bet.Amount;
+                //totalMoneyBet += bet.Amount;
                 actualBalance += bet.Amount * dir;
                 if (userTotals.ContainsKey(bet.From)) {
                     userTotals[bet.From] += bet.Amount * dir;
@@ -193,7 +192,7 @@ internal class Program {
 
         var userBreakdown = "```diff\n";
         foreach (var kvp in userTotals) {
-            var otherUser = _client.GetUser(kvp.Key);
+            var otherUser = await _client.GetUserAsync(kvp.Key);
             userBreakdown += (kvp.Value > 0 ? "+  " : "-  ") + GetDisplayName(otherUser) + " : " + MoneyString(kvp.Value) + "\n";
         }
 
@@ -206,7 +205,7 @@ internal class Program {
                                                userBreakdown);
     }
 
-    public static string MoneyString(int amount) {
+    private static string MoneyString(int amount) {
         return amount < 0 ? "-£" + Math.Abs(amount) : "£" + amount;
     }
 
@@ -247,7 +246,7 @@ internal class Program {
     }
 
 
-    private static ComponentBuilder GetComponentBuilder(SocketUser from, SocketUser to, Bet bet) {
+    private static ComponentBuilder GetComponentBuilder(IUser from, IUser to, Bet bet) {
         var cb = new ComponentBuilder();
         cb = cb.WithButton(GetDisplayName(from) + " Wins it", bet.Id + "-win");
         cb = cb.WithButton(GetDisplayName(to) + " Denies them", bet.Id + "-lose");
@@ -255,7 +254,7 @@ internal class Program {
         return cb;
     } 
 
-    private static string GetDisplayName(SocketUser user) {
+    private static string GetDisplayName(IUser user) {
         if (string.IsNullOrEmpty(user.GlobalName)) {
             return user.Username;
         }
@@ -286,8 +285,8 @@ internal class Program {
 
             bet.HasResolved = true;
 
-            var betTo = _client.GetUser(bet.To);
-            var betFrom = _client.GetUser(bet.From);
+            var betTo = await _client.GetUserAsync(bet.To);
+            var betFrom = await _client.GetUserAsync(bet.From);
 
             var replyString = "";
             if (idData[1] == "cancel") {

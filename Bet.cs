@@ -7,7 +7,7 @@ public class Bet {
     public ulong From;
     public ulong To;
     public int Amount;
-    public string Description;
+    public string Description = "";
     public bool IsWin;
     public bool HasResolved;
 }
